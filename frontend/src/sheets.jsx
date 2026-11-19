@@ -58,6 +58,8 @@ import BodyMap from './components/BodyMap.jsx'
 import MuscleExplorer from './components/MuscleExplorer.jsx'
 import GymHiddenLine from './components/GymHiddenLine.jsx'
 import ExerciseViewToggle from './components/ExerciseViewToggle.jsx'
+import EquipmentPicker from './components/EquipmentPicker.jsx'
+import { availableRoutineState, routineIdsAvailable } from './lib/routine-equipment.js'
 import { sameMuscleFirst, swapMuscleOf } from './lib/similar-exercises.js'
 import { suggestedSubstitutes, relatedSubstitutes } from './lib/exercise-substitutes.js'
 import { backupSuggestions } from './lib/backup-suggestions.js'
@@ -2350,11 +2352,7 @@ function EquipmentProfileSheet({ profile, close }) {
     </div>
     <TextField ref={nameRef} defaultValue={profile?.name || ''} placeholder={t('Profile name')} maxLength={40} />
     <div style={{ height: 12 }} />
-    <div className="chips">
-      {ALL_EQUIPMENT.filter(k => !MACHINE_EQ.includes(k)).map(k => (
-        <button key={k} className={'chip' + (checked.has(k) ? ' on' : '')} onClick={() => toggle(k)}>{t(k)}</button>
-      ))}
-    </div>
+    <EquipmentPicker options={ALL_EQUIPMENT.filter(k => !MACHINE_EQ.includes(k))} value={[...checked]} onToggle={toggle} />
     <div className="sect-b" style={{ marginTop: 14 }}>
       <Row icon="machine" iconTint="var(--indigo)" title={t('Machines')} subtitle={summaryOf} accessory="chevron" onClick={openMachines} />
     </div>
@@ -3375,7 +3373,8 @@ function PlanImport({ bundle, close }) {
 
 /* ============================ day override / assign ============================ */
 function DayOverride({ iso, close }) {
-  const st = useStore(s => s.S)
+  const state = useStore(s => s.S)
+  const st = iso < todayISO() ? state : availableRoutineState(state)
   const hasOvr = st.dayPlan[iso] !== undefined
   // A fulfilled pin (a coach session pinned here and since done) reads as no override, as it does
   // everywhere else — the row to clear the leftover entry stays.
@@ -4000,6 +3999,7 @@ export function DayNoteRow({ iso, note }) {
 // `effectiveRoutineIds(...)` for today's planned session, `[]` / null for explicit freestyle.
 // `opts.lead`: exercises a last session did not get to (lib/leftovers.js, #985), done first.
 export function startFlow(routineIds, opts = {}) {
+  if (!routineIdsAvailable(S(), routineIds)) { toast(t('This routine does not match the selected equipment profile.')); return }
   // The daily-form check-in comes first (v1.4.5, lib/daily-form.js): only when switched on
   // (Settings → Workout), never with the Health module off, once a day.
   if (!opts.checked && checkinMode(S(), todayISO())) { dailyCheckinSheet(routineIds, opts); return }
@@ -4031,6 +4031,7 @@ function dailyCheckinSheet(routineIds, opts) {
 // so the sets ticked on it find it, and its start time, however late the phone hears of it.
 export function beginWorkout(routineIds, bw, { id = null, start = null, lead = null, lighter = null } = {}) {
   const st = S()
+  if (!routineIdsAvailable(st, routineIds)) { toast(t('This routine does not match the selected equipment profile.')); return }
   const built = buildCombinedEntries(st, routineIds)
   const { routineIds: rids, routines } = built
   // The leftovers keep their own routine's `rid`, so the history reads them back per routine;
@@ -4230,7 +4231,8 @@ function beginBackfill({ iso, time, durationMin, routineIds, replaceId }) {
 // stamped with its `rid`), extends `s.active.routineIds`, and re-derives the session name.
 // `s.active.cur` is left where it is — the appended block is reached by scrolling / Next.
 function AddRoutineToSession({ close }) {
-  const st = useStore(s => s.S)
+  const state = useStore(s => s.S)
+  const st = availableRoutineState(state)
   const active = st.active
   if (!active) return null
   const inSession = new Set([].concat(active.routineIds || []))
@@ -4827,7 +4829,6 @@ function doFinishWorkout({ end: endAt, auto } = {}) {
   beep(snd(), 880, 0.15); beep(snd(), 1100, 0.15, 0.18); beep(snd(), 1320, 0.3, 0.36)
   ui().openSheet(close => <FinishSummary w={shown} prs={prs} e1prs={e1prs} additions={additions} close={close} />, { kind: 'center', locked: true, wide: true })
 }
-
 /**
  * Reopen (lib/forgotten-workout.js): a workout that ended by itself goes back to running, as it
  * was, within 24 hours and on the device that ended it. False when that is no longer possible.

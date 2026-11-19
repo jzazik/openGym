@@ -36,6 +36,7 @@ import { groupRoutines, folderOpen, setFolderOpen, folderOf } from '../lib/routi
 import { isFavRoutine } from '../lib/routine-favs.js'
 import { routineFromWorkoutSheet } from '../components/RoutineFromWorkout.jsx'
 import { routineSources } from '../lib/session-routines.js'
+import { routineEquipmentProfile } from '../lib/routine-equipment.js'
 
 // Plan has two views (v1.3.11): Schedule (how you train, and when) and Routines (what you
 // train). The last one you looked at comes back: a per-device convenience, never synced, so it
@@ -472,7 +473,10 @@ function Routines({ S, update, nav }) {
   const order = weekOrder(weekStartOf(S))
   const daysOf = id => order.filter(d => [].concat(S.week[d] || []).includes(id)).map(d => t(DAYS[d]))
   // A routine a trainer assigned or changed says who (docs/TRAINERS.md, `_by`).
-  const sub = r => [exCount(r.ex.length), daysOf(r.id).join(', '), r._by?.kind === 'trainer' && r._by.name ? t('from {0}', r._by.name) : null, edit ? folderOf(r) : null].filter(Boolean).join(' · ')
+  const sub = r => {
+    const profile = routineEquipmentProfile(S, r)
+    return [exCount(r.ex.length), daysOf(r.id).join(', '), r._by?.kind === 'trainer' && r._by.name ? t('from {0}', r._by.name) : null, profile && t('Equipment profile') + ': ' + profile.name, edit ? folderOf(r) : null].filter(Boolean).join(' · ')
+  }
 
   return <>
     <div className="row between plan-sec-h plan-routines-bar">

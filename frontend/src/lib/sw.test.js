@@ -59,6 +59,20 @@ const shellHtml = '<html><head><script src="./assets/index-new.js"></script></he
 beforeEach(() => { delete globalThis.self })
 
 describe('sw.js install and activate', () => {
+  it('precaches all equipment thumbnails referenced by the application shell', async () => {
+    await loadSW()
+    const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8')
+    const images = [...html.matchAll(/href="(equipment-v1\/[^\"]+\.webp)"/g)].map(m => m[1])
+    expect(images).toHaveLength(23)
+    globalThis.fetch = async u => String(u) === 'index.html'
+      ? { ok: true, status: 200, redirected: false, text: async () => html }
+      : { ok: true, status: 200, clone: () => ({}) }
+    await fire('install')
+    const c = await globalThis.caches.open(CACHE)
+    for (const image of images) expect(await c.match(image)).toBeTruthy()
+    expect(skipWaiting).toBe(1)
+  })
+
   it('a precache that cannot reach the server fails the install and keeps the build on the device', async () => {
     await loadSW()
     const old = await previousBuild()

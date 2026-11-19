@@ -94,6 +94,7 @@ import { tempoOf, normalizeTempo, guideReps } from '../lib/tempo.js'
 import { usesBands, setBandsOf, toggleSetBand } from '../lib/bands.js'
 import { BandChips } from '../components/Bands.jsx'
 import { isoDir } from '../lib/bidi.js'
+import { availableRoutineState } from '../lib/routine-equipment.js'
 
 // How long after a key starts a hold the same key is not yet its "Done" (#133). A USB button
 // that bounces, or a double press, sends two presses a moment apart: the first starts the hold,
@@ -103,7 +104,8 @@ const HOLD_KEY_GRACE_MS = 1500
 /* ---------- start chooser (no active workout) ---------- */
 function StartChooser() {
   const nav = useNavigate()
-  const S = useStore(s => s.S)
+  const state = useStore(s => s.S)
+  const S = availableRoutineState(state)
   const todayIds = effectiveRoutineIds(S, todayISO())
   const todayRoutines = effectiveRoutines(S, todayISO())
   const todayName = todayRoutines.map(r => r.name).join(' + ')
@@ -127,7 +129,9 @@ function StartChooser() {
         <span className="tag acc">{t('Start')}</span></div>)}</div></>}
     <div style={{ height: 14 }} />
     <Button icon="shuffle" onClick={() => startFlow([])}>{t('Freestyle workout (pick as you go)')}</Button>
-    {!S.routines.length && <><div style={{ height: 10 }} /><Button variant="primary" onClick={() => nav('/plan')}>{t('Build a plan first')}</Button></>}
+    {!S.routines.length && <><div style={{ height: 10 }} />
+      {state.routines.length > 0 && <p className="sect-f" role="status">{t('No routines match this equipment profile. Edit your routines or choose another profile.')}</p>}
+      <Button variant="primary" onClick={() => nav('/plan')}>{state.routines.length ? t('Plan') : t('Build a plan first')}</Button></>}
   </div>
 }
 

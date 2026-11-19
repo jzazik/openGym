@@ -5,6 +5,7 @@ import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { exOr } from '../lib/exercises.js'
 import { activeProfile, exAvailable } from '../lib/equipment.js'
+import { routineEquipmentProfile } from '../lib/routine-equipment.js'
 import { uid, exerciseNameText } from '../lib/format.js'
 import { t, exerciseNameFor, exerciseNameClass } from '../lib/i18n.js'
 import { nameIn, said } from '../lib/a11y-name.js'
@@ -513,6 +514,11 @@ export default function RoutineEdit() {
     </div>
 
     <div className="sect-b" style={{ marginBottom: 16 }}>
+      <SelectRow icon="dumbbell" title={t('Equipment profile')} stackedValue
+        value={routineEquipmentProfile(S, r)?.id || ''}
+        onChange={v => update(s => { s.routines.find(x => x.id === id).equipmentProfileId = v })}
+        options={[{ value: '', label: t('Match exercise equipment automatically') }, ...(S.equipProfiles || []).map(p => ({ value: p.id, label: p.name }))]} />
+      <div className="sect-f">{t('Only suggested with this profile and when all exercise equipment is available.')}</div>
       <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}
         value={r.prog || profileRule(S)} onChange={v => update(s => { s.routines.find(x => x.id === id).prog = v })}
         options={POLICIES_FOR.reps.map(p => ({ value: p, label: t(POLICY_NAME[p]), subtitle: t(POLICY_DESC[p]) }))} />

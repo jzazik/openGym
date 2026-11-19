@@ -23,7 +23,10 @@ import { WeeklySetsHomeLine } from '../components/WeeklySets.jsx'
 import { RecapHomeCard } from '../components/Recap.jsx'
 import { scheduleModeOf } from '../lib/rotation.js'
 import { useConnectionTrouble } from '../components/SyncBanner.jsx'
-import { Button } from '../components/ui.jsx'
+import { Button, SelectRow } from '../components/ui.jsx'
+import { activeProfile } from '../lib/equipment.js'
+import { availableRoutineState } from '../lib/routine-equipment.js'
+import { switchGym } from '../lib/gym-inventory.js'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { glyphOf } from '../lib/glyphs.js'
 import { dayNoteOf } from '../lib/day-notes.js'
@@ -37,11 +40,15 @@ import RecoveryHint from '../components/RecoveryHint.jsx'
 import { FastingLine } from '../components/SisterApps.jsx'
 import { ChallengesCard } from '../components/Challenges.jsx'
 import { isOn } from '../lib/modules.js'
+import TrainingAvatar from '../components/TrainingAvatar.jsx'
 
 // Home = what to do now + a quick glance. Deep charts & history live in Stats.
 export default function Home() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
+  const update = useStore(s => s.update)
+  const training = availableRoutineState(S)
+  const profile = activeProfile(S)
   const user = useStore(s => s.user)
   // The banner switched off and the sync stuck: a dot on the gear (Settings → Show connection status).
   const trouble = useConnectionTrouble()
@@ -50,7 +57,7 @@ export default function Home() {
   const today = new Date()
   // A weekday can hold several routines. `todayRoutines` is the whole day; `routine` is the
   // first, kept for the one-routine glyph. The derived session name joins them (§9).
-  const todayRoutines = effectiveRoutines(S, todayISO())
+  const todayRoutines = effectiveRoutines(training, todayISO())
   const routine = todayRoutines[0] || null
   const todayName = todayRoutines.map(r => r.name).join(' + ')
   // A fulfilled pin (a coach session pinned to today and since done) reads as no override.
@@ -82,7 +89,7 @@ export default function Home() {
   for (let i = 0; i < 7; i++) {
     const d = new Date(wkStart); d.setDate(wkStart.getDate() + i)
     const iso = isoOf(d)
-    const eff = effectiveRoutineIds(S, iso).length > 0, ovr = S.dayPlan[iso] !== undefined, done = doneDays.has(iso)
+    const eff = effectiveRoutineIds(training, iso).length > 0, ovr = S.dayPlan[iso] !== undefined, done = doneDays.has(iso)
     // A day off with a note (#261) reads as excused, not as a plan that went by.
     const dot = done ? ' done' : dayNoteOf(S, iso) ? ' noted' : ovr && eff ? ' ovr' : eff ? ' plan' : ''
     strip.push(<div key={i} className={'wday' + (iso === todayISO() ? ' today' : '')} {...tappable(() => dayOverrideSheet(iso))}>
@@ -93,7 +100,7 @@ export default function Home() {
 
   // A coach week (S.queue) read through the same tolerant reader QueueRow uses, so a malformed
   // queue from another client shows the weekday dots, never an empty card.
-  const queue = queueView(S, todayISO())
+  const queue = queueView(training, todayISO())
   // This card shows one thing or the other — QueueRow for a live queue, or Rotation chosen with
   // nothing built yet (S.scheduleMode), in which case there is no queue for QueueRow to render and
   // an empty-state card takes its place. Plan does the same in rotation mode: no weekday grid, only
@@ -110,12 +117,12 @@ export default function Home() {
   // would otherwise still read as "this app manages it" (lib/rotation.js).
   const managedQueue = !!liveQ && !!S.rotation && liveQ.rotationId === S.rotation.id
   // On a rest day, saying when you train next beats leaving the row as a full stop.
-  const next = !S.active && !todayRoutines.length && !(rotating && !plannerQueue) ? nextTrainingDay(S, todayISO()) : null
+  const next = !S.active && !todayRoutines.length && !(rotating && !plannerQueue) ? nextTrainingDay(training, todayISO()) : null
   // The streak card's fraction: this calendar week's workouts over the weekdays with a plan, or,
   // in a coach week, the queue's sessions and your own days together (lib/queue.js weekTally).
-  const tally = weekTally(S, todayISO())
+  const tally = weekTally(training, todayISO())
   const { done: doneThisWeek, planned: plannedPerWeek } = tally
-  const left = workoutsLeft(S, todayISO())
+  const left = workoutsLeft(training, todayISO())
   // The streak with its best run and freezes (lib/streak.js), read back from the workouts.
   const todayKey = todayISO()
   const streak = useMemo(() => streakInfo(S, todayKey), [S.workouts, S.weekStart, S.streakRule, S.recoverySessions, S.recoveryStreak, S.activities, S.activityStreak, todayKey]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -124,7 +131,7 @@ export default function Home() {
   const bwPoints = S.bodyweight.slice(-30).map(b => ({ t: weighInAt(b), y: b.w, d: b.d }))
 
   // today's session shown right under the week strip
-  const onToday = () => { if (S.active) nav('/workout'); else if (todayRoutines.length) startOrPreview(effectiveRoutineIds(S, todayISO())); else dayOverrideSheet(todayISO()) }
+  const onToday = () => { if (S.active) nav('/workout'); else if (todayRoutines.length) startOrPreview(effectiveRoutineIds(training, todayISO())); else dayOverrideSheet(todayISO()) }
   // A chip on the coach week's progress row starts that one routine, in any order. A session
   // already in progress wins, as on the today row — starting another would overwrite it.
   const progChip = programmeChip(S)
@@ -137,10 +144,18 @@ export default function Home() {
   return <div className="narrow">
     <div className="hdr">
       <SeasonDeco spot="header-bats" />
-      <div><h1>{user ? t('Hi {0}', user.name) : 'openGym'}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
+      <div className="home-greeting"><TrainingAvatar workouts={S.workouts} /><div><h1>{user ? t('Hi {0}', user.name) : 'openGym'}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div></div>
       <button className="iconbtn" data-tour="settings-gear" onClick={() => nav('/settings')} aria-label={trouble ? t('Settings') + ', ' + t('Connection problem') : t('Settings')}><Icon name="gear" />{trouble && <span className="tab-dot" aria-hidden="true" />}</button>
     </div>
     <TrainerNotice />
+
+    <div className="sect-b" style={{ marginBottom: 16 }}>
+      <SelectRow icon="dumbbell" title={t('Equipment profile')} value={profile?.id || ''} stackedValue
+        onChange={id => update(s => { if (id) switchGym(s, id); s.equipFilterOn = !!id })}
+        options={[{ value: '', label: profile?.noDumbbells ? profile.name : t('All equipment') }, ...(S.equipProfiles || []).map(p => ({ value: p.id, label: p.name }))]} />
+      {!(S.equipProfiles || []).length && <Button size="sm" variant="ghost" onClick={() => nav('/settings')}>{t('Add equipment profile')}</Button>}
+    </div>
+    {profile && S.routines.length > 0 && !training.routines.length && !S.active && <p className="sect-f" role="status">{t('No routines match this equipment profile. Edit your routines or choose another profile.')}</p>}
 
     <div className="card">
       {/* A running programme (lib/programmes.js) wrote this week's plan: where it stands, one tap from its screen. */}
@@ -148,8 +163,8 @@ export default function Home() {
       {/* A coach week runs by order, not by weekday, so its progress row stands in for the
           seven dots (components/QueueRow.jsx). The today row below stays as it is: the queue's
           next session reaches it through effectiveRoutineIds like any planned routine. */}
-      {rotating ? (queue ? <QueueRow S={S} today={todayISO()} onStart={onQueueStart} managed={managedQueue} /> : <div className="empty">
-        {t('No rotation yet. Add routines to it in Plan.')}
+      {rotating ? (queue ? <QueueRow S={training} today={todayISO()} onStart={onQueueStart} managed={managedQueue} /> : <div className="empty">
+        {liveQ && profile ? t('No routines match this equipment profile. Edit your routines or choose another profile.') : t('No rotation yet. Add routines to it in Plan.')}
         <div style={{ marginTop: 10 }}><Button size="sm" variant="tinted" onClick={() => nav('/plan')}>{t('Set up in Plan')}</Button></div>
       </div>) : <>
         <div className="row between" style={{ marginBottom: 8 }}>
@@ -230,7 +245,7 @@ export default function Home() {
     {on('motivation') && <WrappedHomeCard S={S} />}
 
     {/* What has rested and what is still recovering, kindly (lib/recovery-hint.js). */}
-    {on('health') && <RecoveryHint S={S} />}
+    {on('health') && <RecoveryHint S={training} />}
 
     {/* A deload week now or next, or a lighter week suggested (lib/deload-cycle.js). */}
     <DeloadCard S={S} />

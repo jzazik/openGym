@@ -9,6 +9,7 @@ import Icon from './Icon.jsx'
 import Elapsed from './Elapsed.jsx'
 import { useConnectionTrouble } from './SyncBanner.jsx'
 import { retapTab } from '../lib/scroll-top.js'
+import { availableRoutineState } from '../lib/routine-equipment.js'
 
 // Module scope, not TabBar's render body. Declared inside it, `Tab` was a new function on every
 // render, so React saw a different component type each time and threw the button away and built a
@@ -54,15 +55,16 @@ export default function TabBar({ onStart, onPick }) {
     // The press was held: the picker is open already, and this click is its release.
     if (hold.current === 'fired') { hold.current = null; return }
     if (!S.active) {
+      const training = availableRoutineState(S)
       // Settings → Workout → Start button (#930): every tap asks which workout.
       if (S.startPick === 'ask' && onPick) { onPick(); return }
       // A day trained separately (#908) starts its next session not done yet.
-      if (dayApart(S, todayISO())) {
-        const ids = nextSessionIds(S, todayISO())
+      if (dayApart(training, todayISO())) {
+        const ids = nextSessionIds(training, todayISO())
         if (ids) { onStart(ids); return }
       // A weekday can hold several routines; start the combined session if any of them has
       // exercises, otherwise fall through to the picker.
-      } else if (effectiveRoutines(S, todayISO()).some(r => r.ex.length)) { onStart(effectiveRoutineIds(S, todayISO())); return }
+      } else if (effectiveRoutines(training, todayISO()).some(r => r.ex.length)) { onStart(effectiveRoutineIds(training, todayISO())); return }
     }
     nav('/workout')
   }

@@ -1,5 +1,10 @@
 // Lithuanian UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "Equipment profile": "Įrangos profilis",
+  "Match exercise equipment automatically": "Automatiškai pagal pratimo įrangą",
+  "Only suggested with this profile and when all exercise equipment is available.": "Siūloma tik su šiuo profiliu ir kai visa pratimų įranga yra.",
+  "No routines match this equipment profile. Edit your routines or choose another profile.": "Nė viena rutina neatitinka šio įrangos profilio. Pakeiskite rutinas arba pasirinkite kitą profilį.",
+  "This routine does not match the selected equipment profile.": "Ši rutina neatitinka pasirinkto įrangos profilio.",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Laikrodžiai",
   "Set once": "Nustatoma kartą",

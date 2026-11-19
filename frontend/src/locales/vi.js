@@ -1,5 +1,10 @@
 // Vietnamese UI strings. Generated for openGym.
 export default {
+  "Equipment profile": "Hồ sơ thiết bị",
+  "Match exercise equipment automatically": "Tự khớp theo thiết bị của bài tập",
+  "Only suggested with this profile and when all exercise equipment is available.": "Chỉ được gợi ý với hồ sơ này và khi có đủ thiết bị cho các bài tập.",
+  "No routines match this equipment profile. Edit your routines or choose another profile.": "Không có bài tập nào khớp hồ sơ thiết bị này. Sửa bài tập hoặc chọn hồ sơ khác.",
+  "This routine does not match the selected equipment profile.": "Bài tập này không khớp hồ sơ thiết bị đã chọn.",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Đồng hồ",
   "Set once": "Đặt một lần",

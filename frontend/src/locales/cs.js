@@ -1,5 +1,10 @@
 // Czech UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "Equipment profile": "Profil vybavení",
+  "Match exercise equipment automatically": "Automaticky podle vybavení cviků",
+  "Only suggested with this profile and when all exercise equipment is available.": "Nabízí se jen s tímto profilem a jen když je k dispozici všechno vybavení cviků.",
+  "No routines match this equipment profile. Edit your routines or choose another profile.": "Žádná rutina neodpovídá tomuto profilu vybavení. Upravte rutiny, nebo zvolte jiný profil.",
+  "This routine does not match the selected equipment profile.": "Tato rutina neodpovídá vybranému profilu vybavení.",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Hodinky",
   "Set once": "Nastavit jednou",

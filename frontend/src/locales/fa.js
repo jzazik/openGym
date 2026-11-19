@@ -1,5 +1,10 @@
 // Persian UI strings. Keys are the English source strings.
 export default {
+  "Equipment profile": "پروفایل تجهیزات",
+  "Match exercise equipment automatically": "تطبیق خودکار با تجهیزات حرکت",
+  "Only suggested with this profile and when all exercise equipment is available.": "فقط با این پروفایل و وقتی همه تجهیزات حرکت‌ها موجود باشد پیشنهاد می‌شود.",
+  "No routines match this equipment profile. Edit your routines or choose another profile.": "هیچ برنامه‌ای با این پروفایل تجهیزات جور نیست. برنامه‌ها را ویرایش کنید یا پروفایل دیگری انتخاب کنید.",
+  "This routine does not match the selected equipment profile.": "این برنامه با پروفایل تجهیزات انتخاب‌شده جور نیست.",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "ساعت‌ها",
   "Set once": "یک‌بار تنظیم",

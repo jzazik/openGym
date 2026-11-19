@@ -1,5 +1,10 @@
 // Indonesian UI strings. Keys are the English source strings (see lib/i18n.js).
 export default {
+  "Equipment profile": "Profil peralatan",
+  "Match exercise equipment automatically": "Cocokkan otomatis menurut peralatan latihan",
+  "Only suggested with this profile and when all exercise equipment is available.": "Hanya disarankan dengan profil ini dan jika semua peralatan latihan tersedia.",
+  "No routines match this equipment profile. Edit your routines or choose another profile.": "Tidak ada rutinitas yang cocok dengan profil peralatan ini. Ubah rutinitas atau pilih profil lain.",
+  "This routine does not match the selected equipment profile.": "Rutinitas ini tidak cocok dengan profil peralatan yang dipilih.",
   // --- Settings first screen in groups (#1105) ---
   "Watches": "Jam tangan",
   "Set once": "Atur sekali",

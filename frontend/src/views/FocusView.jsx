@@ -220,7 +220,7 @@ export default function FocusView({
     const active = useStore.getState().S.active
     if (!active) return
     if (unitDone) {
-      onAdvanceUnit()
+      if (unit.includes(useStore.getState().S.active?.cur)) onAdvanceUnit()
       const nextEntryIdx = useStore.getState().S.active?.cur
       if (nextEntryIdx !== entryIdx) clearPointer(nextEntryIdx)
     }

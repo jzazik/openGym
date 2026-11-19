@@ -242,16 +242,16 @@ const runRest = (set, get) => {
         alertBuzz([200, 100, 200]); get().flashTimer()
         cues.restOver()
       }
-      // The toast stays even when the rest ran out while the app was hidden: a guest, or anyone
-      // without push permission, gets no notification, and a countdown that silently vanishes
-      // on reopen reads like a bug. Only the loud parts (beep, vibration, flash) are gated.
-      // The native alarm is left armed: this tick can come a little early, and with the screen
-      // locked it never runs at all.
+      // On screen the bar goes with the countdown: the toast is the cue. Away, Ready stays,
+      // or a countdown that vanished while the app was hidden reads like a bug (a guest gets
+      // no notification). Only the loud parts are gated on having seen the end. The native
+      // alarm stays armed: this tick can come a little early, and with the screen locked it
+      // never runs at all.
       get().toast(t('Rest’s over. Next set!'))
       if (!MOBILE) maybeRestNotification()
       cancelPushRestTimer()
       stopRestTicking()
-      set({ timer: { ...tm, left: 0, ready: true } })
+      set(seenLive ? { timer: null } : { timer: { ...tm, left: 0, ready: true } })
       return
     }
     if (left <= 3) beep(snd, 660, 0.1)

@@ -218,10 +218,18 @@ describe('rest readiness and optional timed-set overtime', () => {
     vi.useRealTimers()
   })
 
-  it('keeps Ready and its rest owner until dismissed or restarted', () => {
+  it('hides the bar when the rest finishes on screen, and keeps Ready when it finished away', () => {
     useUI.getState().startRest(1, 2)
     vi.advanceTimersByTime(1000)
     vi.advanceTimersByTime(5000)
+    expect(useUI.getState().timer).toBeNull()
+
+    useUI.getState().startRest(90, 2)
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    vi.setSystemTime(Date.now() + 91_000)
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
     expect(useUI.getState().timer).toMatchObject({ left: 0, ready: true, forIdx: 2 })
     useUI.getState().addRest(15)
     expect(useUI.getState().timer).toMatchObject({ left: 15, forIdx: 2 })

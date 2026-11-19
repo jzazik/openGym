@@ -49,7 +49,7 @@ describe('pausing the rest timer', () => {
     vi.advanceTimersByTime(59000)
     expect(useUI.getState().timer).toMatchObject({ left: 1 })
     vi.advanceTimersByTime(1000)
-    expect(useUI.getState().timer).toMatchObject({ left: 0, ready: true, forIdx: 1 })
+    expect(useUI.getState().timer).toBeNull()
     expect(useUI.getState().timerFlashId).toBe(1)   // ended on screen: the usual alert
     expect(chime).toHaveBeenCalledTimes(1)
   })
@@ -80,8 +80,7 @@ describe('pausing the rest timer', () => {
     useUI.getState().startRest(1)
     vi.advanceTimersByTime(1000)
     useUI.getState().pauseRest()
-    expect(useUI.getState().timer).toMatchObject({ ready: true })
-    expect(useUI.getState().timer.paused).toBeUndefined()
+    expect(useUI.getState().timer).toBeNull()
 
     useUI.getState().startRest(30)
     const running = useUI.getState().timer

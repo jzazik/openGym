@@ -78,7 +78,7 @@ describe('holds that start by themselves', () => {
     tapStart()
     expect(useUI.getState().work.auto).toBeFalsy()
     wait(10_000 + REST * 1000)
-    expect(useUI.getState().timer).toMatchObject({ ready: true })
+    expect(useUI.getState().timer).toBeNull()
     expect(useUI.getState().countIn).toBeNull()
   })
 
@@ -126,7 +126,7 @@ describe('holds that start by themselves', () => {
     act(() => useUI.getState().stopAuto())
     expect(useStore.getState().S.active.autoHoldsOff).toBe(true)
     wait(REST * 1000)
-    expect(useUI.getState().timer).toMatchObject({ ready: true })
+    expect(useUI.getState().timer).toBeNull()
     expect(useUI.getState().countIn).toBeNull()
   })
 

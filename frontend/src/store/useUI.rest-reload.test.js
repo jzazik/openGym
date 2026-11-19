@@ -70,7 +70,7 @@ describe('the rest timer across a reload', () => {
     expect(useUI.getState().timer).toMatchObject({ left: 40, total: 90, endsAt, forIdx: 1 })
     expect(pushes()).toEqual([])
     vi.advanceTimersByTime(41_000)
-    expect(useUI.getState().timer).toMatchObject({ ready: true, left: 0 })
+    expect(useUI.getState().timer).toBeNull()
     expect(chime).toHaveBeenCalledTimes(1)
     expect(saved()).toBeNull()
   })

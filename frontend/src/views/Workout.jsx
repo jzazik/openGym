@@ -2067,14 +2067,13 @@ function ActiveWorkout() {
         return
       }
 
-      // With finished exercises folding away in the list, the one you just finished does too: the
-      // marker moves on to what is left, so the open unit is the next thing to do (Discord: "view
-      // only what I have yet to do"). The scroll anchor holds what is on screen while it folds,
-      // and revealCur brings the next exercise up if it was left low on the screen. Only on new
-      // progress, never on a re-tick, and never in the other layouts, where the marker stays put.
-      if (collapseOn && freshUnitDone && nextUnit && freshUnit?.includes(fresh.cur)) {
-        revealCur.current = true
-        update(s => { if (s.active) s.active.cur = nextUnit[0] })
+      // The finished exercise steps aside as the rest starts, so the break is spent looking at
+      // the next one. Cards and Focus always; the list only when finished exercises fold away
+      // (revealCur brings that one up if it was left low). Only on new progress, never a re-tick,
+      // and only while that unit is still the one on screen.
+      if (freshUnitDone && nextUnit && freshUnit?.includes(fresh.cur) && (!listMode || collapseOn)) {
+        if (listMode) revealCur.current = true
+        update(s => { if (s.active && freshUnit.includes(s.active.cur)) s.active.cur = nextUnit[0] })
       }
 
       // Between the two sides of one timed per-side set (a side plank's left, then its right):

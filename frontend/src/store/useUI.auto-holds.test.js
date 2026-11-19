@@ -151,7 +151,7 @@ describe('timed holds that run themselves', () => {
     useUI.getState().startRest(REST, 0)
     expect(useUI.getState().timer.autoNext).toBeUndefined()
     vi.advanceTimersByTime(REST * 1000)
-    expect(useUI.getState().timer).toMatchObject({ ready: true })
+    expect(useUI.getState().timer).toBeNull()
     expect(useUI.getState().countIn).toBeNull()
   })
 
@@ -248,7 +248,7 @@ describe('timed holds that run themselves', () => {
     start([hold(30, { done: true }), hold(30)], { autoHolds: false })
     useUI.getState().startRest(REST, 0)
     vi.advanceTimersByTime(REST * 1000)
-    expect(useUI.getState().timer).toMatchObject({ ready: true })
+    expect(useUI.getState().timer).toBeNull()
     expect(useUI.getState().countIn).toBeNull()
     useUI.getState().stopRest()
     unbind()

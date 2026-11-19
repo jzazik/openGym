@@ -59,14 +59,14 @@ describe('the docked rest bar', () => {
   // in became −15. The slots stay put now: the pause slot is kept (inert, invisible) and Skip
   // carries Dismiss in the same cell, so its width does not change either.
   it('keeps every button in its slot when the rest turns Ready', () => {
-    act(() => useUI.getState().startRest(1, 0))
+    act(() => useUI.getState().startRest(30, 0))
     mount()
     const slots = () => [...host.querySelectorAll('#timer .acts > button')].map(b => b.className.match(/adj|pause-slot|pause|skip/)[0])
     expect(slots()).toEqual(['adj', 'adj', 'pause', 'skip'])
     expect(host.querySelector('#timer .t').dataset.alt).toBe('Ready')
     const skipCell = () => [...host.querySelectorAll('#timer .skip > span:not(.skip-probe) > span')].map(s => s.textContent).sort()
     expect(skipCell()).toEqual(['Dismiss', 'Skip'])
-    act(() => vi.advanceTimersByTime(1000))
+    act(() => useUI.setState({ timer: { ...useUI.getState().timer, left: 0, ready: true } }))
     expect(host.querySelector('#timer .t').textContent).toBe('Ready')
     expect(slots()).toEqual(['adj', 'adj', 'pause-slot', 'skip'])
     expect(host.querySelector('#timer .t').dataset.alt).toBe('0:00')
@@ -93,6 +93,8 @@ describe('the docked rest bar', () => {
       expect(skip.querySelector('.on')).toBeNull()
       expect(skip.querySelector('svg')).toBeTruthy()
       act(() => vi.advanceTimersByTime(1000))
+      expect(host.querySelector('#timer')).toBeNull()
+      act(() => useUI.setState({ timer: { left: 0, total: 1, endsAt: Date.now(), ready: true } }))
       expect(host.querySelector('#timer .skip').getAttribute('aria-label')).toBe('Dismiss')
       act(() => host.querySelector('#timer .skip').click())
       expect(useUI.getState().timer).toBeNull()
@@ -125,8 +127,7 @@ describe('the docked rest bar', () => {
     act(() => applyRestLeft(0))
     expect(useUI.getState().timer).toBeNull()
 
-    act(() => useUI.getState().startRest(1, 2))
-    act(() => vi.advanceTimersByTime(1000))
+    act(() => useUI.setState({ timer: { left: 0, total: 1, endsAt: Date.now(), forIdx: 2, ready: true } }))
     expect(useUI.getState().timer.ready).toBe(true)
     act(() => applyRestLeft(45))
     expect(useUI.getState().timer).toMatchObject({ left: 45, total: 45, forIdx: 2 })
@@ -148,11 +149,11 @@ describe('the docked rest bar', () => {
     act(() => useUI.getState().startRest(5, 2))
     act(() => host.querySelector('#timer .tclock').click())
     act(() => vi.advanceTimersByTime(5000))
-    expect(useUI.getState().timer.ready).toBe(true);
+    expect(useUI.getState().timer).toBeNull();
     ({ el, r } = sheetHost())
     act(() => { [...el.querySelectorAll('button')].find(b => b.textContent === 'Done').click() })
     act(() => r.unmount()); el.remove()
-    expect(useUI.getState().timer).toMatchObject({ ready: true, left: 0 })
+    expect(useUI.getState().timer).toBeNull()
 
     // a switch-sides pause that ended does not turn into a plain rest
     act(() => useUI.getState().startRest(5, 1, { kind: 'switch' }))

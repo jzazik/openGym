@@ -34,9 +34,17 @@ afterEach(() => {
 const mount = () => act(() => root.render(<RestTimer />))
 
 describe('RestTimer Ready and overtime display', () => {
-  it('keeps Ready and its Dismiss action across a remount', () => {
+  it('drops the bar when the rest finishes on screen', () => {
     act(() => useUI.getState().startRest(1, 4))
+    mount()
     act(() => vi.advanceTimersByTime(1000))
+    expect(useUI.getState().timer).toBeNull()
+    expect(host.querySelector('#timer')).toBeNull()
+    expect(document.body.classList.contains('resting')).toBe(false)
+  })
+
+  it('keeps Ready and its Dismiss action across a remount', () => {
+    act(() => useUI.setState({ timer: { left: 0, total: 90, endsAt: Date.now(), forIdx: 4, ready: true } }))
     mount()
 
     expect(host.querySelector('#timer .t').textContent).toBe('Ready')
@@ -88,9 +96,8 @@ describe('RestTimer pause and resume', () => {
   })
 
   it('offers no pause once the rest is Ready, and none on the timed hold', () => {
-    act(() => useUI.getState().startRest(1))
+    act(() => useUI.setState({ timer: { left: 0, total: 90, endsAt: Date.now(), ready: true } }))
     mount()
-    act(() => vi.advanceTimersByTime(1000))
     expect(host.querySelector('#timer .t').textContent).toBe('Ready')
     expect(pause()).toBeNull()
 

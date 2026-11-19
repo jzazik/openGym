@@ -117,7 +117,9 @@ describe('the rest the app starts, pauses and ends', () => {
     expect(disarmRestAlert.mock.calls.length).toBe(armed + 1)
 
     useUI.getState().startRest(1)
-    vi.advanceTimersByTime(1000)
+    hide(true)
+    vi.setSystemTime(Date.now() + 5000)
+    hide(false)
     expect(useUI.getState().timer.ready).toBe(true)
     const ready = disarmRestAlert.mock.calls.length
     useUI.getState().stopRest()
@@ -188,7 +190,7 @@ describe('the notification’s own buttons', () => {
     vi.advanceTimersByTime(79_000)
     expect(useUI.getState().timer).toMatchObject({ left: 1 })
     vi.advanceTimersByTime(1000)
-    expect(useUI.getState().timer).toMatchObject({ left: 0, ready: true, forIdx: 2 })
+    expect(useUI.getState().timer).toBeNull()
     // The app made none of these changes, so it sends none of them back.
     expect(holdRestAlert).not.toHaveBeenCalled()
     expect(armRestAlert).toHaveBeenCalledTimes(1)
@@ -202,12 +204,14 @@ describe('the notification’s own buttons', () => {
     vi.advanceTimersByTime(54_000)
     expect(useUI.getState().timer).toMatchObject({ left: 1 })
     vi.advanceTimersByTime(1000)
-    expect(useUI.getState().timer.ready).toBe(true)
+    expect(useUI.getState().timer).toBeNull()
   })
 
   it('+15 s on a rest the app already called Ready opens it again', () => {
     useUI.getState().startRest(1)
-    vi.advanceTimersByTime(1500)
+    hide(true)
+    vi.setSystemTime(Date.now() + 5000)
+    hide(false)
     expect(useUI.getState().timer.ready).toBe(true)
     fromNotification('adjust', 15, 16)
     expect(useUI.getState().timer).toMatchObject({ left: 15, total: 16 })

@@ -24,6 +24,7 @@ import { useCoachGate } from '../lib/use-coach-gate.js'
 import { MOBILE } from '../lib/mobile.js'
 import { activeProfile } from '../lib/equipment.js'
 import Icon from '../components/Icon.jsx'
+import EquipmentPicker from '../components/EquipmentPicker.jsx'
 import { Button, TextArea } from '../components/ui.jsx'
 import { HourMinuteWheel } from '../components/DurationWheel.jsx'
 import '../coach.css'
@@ -218,9 +219,7 @@ export default function CoachIntake() {
         <div className="ob-eyebrow">{t('Equipment')}</div>
         <h1 className="ob-h">{t('What can you train with?')}</h1>
         <p className="ob-p">{t('Pick everything you have access to. Leave it empty and the Coach will use the whole library.')}</p>
-        <div className="ob-chips">
-          {EQUIPMENT.map(e => <button key={e} className={'chip' + (p.equipment.includes(e) ? ' on' : '')} onClick={() => toggleEq(e)}>{t(e)}</button>)}
-        </div>
+        <EquipmentPicker options={EQUIPMENT} value={p.equipment} onToggle={toggleEq} />
       </>}
 
       {key === 'limits' && <>

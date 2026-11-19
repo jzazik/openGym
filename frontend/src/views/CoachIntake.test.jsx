@@ -448,13 +448,16 @@ describe('CoachIntake — the answers themselves', () => {
     expect(mocks.S.coach.profile).toMatchObject({ daysPerWeek: 4, preferredDays: [1, 3] })
   })
 
-  it('equipment chips toggle and reach the profile', () => {
+  it('illustrated equipment cards save catalogue identifiers instead of translated labels', () => {
     mount(); walkTo('Equipment')
-    const chips = all('.ob-chips .chip')
-    expect(chips.length).toBeGreaterThan(2)
-    act(() => chips[0].click()); act(() => chips[2].click()); act(() => chips[0].click())
+    const cards = all('.equipment-option')
+    expect(cards).toHaveLength(14)
+    expect(cards[2].textContent).toContain('Блочный тренажёр')
+    act(() => cards[0].click()); act(() => cards[2].click()); act(() => cards[0].click())
+    expect(cards[0].getAttribute('aria-pressed')).toBe('false')
+    expect(cards[2].getAttribute('aria-pressed')).toBe('true')
     walkTo('Almost there'); cont()
-    expect(mocks.S.coach.profile.equipment).toEqual([chips[2].textContent])
+    expect(mocks.S.coach.profile.equipment).toEqual(['cable'])
   })
 
   it('the quick length chips and the two wheels write the same field', () => {

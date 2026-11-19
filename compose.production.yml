@@ -1,0 +1,5 @@
+services:
+  api:
+    image: ghcr.io/duartesantos8/opengym-api:1.4.4
+  web:
+    image: ghcr.io/duartesantos8/opengym-web:1.4.4

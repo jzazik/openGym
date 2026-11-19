@@ -399,6 +399,9 @@ button.conn:active{filter:brightness(1.12)}
 }
 /* large title, the way a nav bar does it */
 .hdr{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:8px 0 18px}
+.home-greeting{display:flex;align-items:center;gap:12px}
+.home-greeting>div{min-width:0}
+.training-avatar{display:block;flex:none;object-fit:contain}
 /* The title block gives way, the button on the right never does: a flex item will not shrink
    below its longest word, so "Упражнения" at 34px or "Hi Bartholomew_Jones" used to push the
    gear / "By muscle" past the screen edge. Two things follow from letting it shrink. Below 420px

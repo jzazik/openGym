@@ -49,6 +49,9 @@ curl http://localhost:8080/api/health      # {"ok":true,...}
 
 Logs: `docker compose logs -f`. Stop: `docker compose down`.
 
+For the deployment at `gym.jzazik.com` and a local preview without Docker, see
+[the Firebat guide](SELF_HOSTING_FIREBAT.md).
+
 ## 2. Understand the passkey requirement (important)
 
 openGym signs you in with **passkeys** (WebAuthn). Browsers enforce two rules:

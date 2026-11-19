@@ -1,0 +1,7 @@
+services:
+  web:
+    image: opengym-web:1.4.4-workout-flow-v1
+    build:
+      context: ${OPENGYM_SOURCE_DIR:-.}
+      args:
+        APP_BUILD: workout-flow-v1

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { scheduleModeOf, queueRecovery, rotationIds, startPass, saveRotation, startNewPass, stopPass, refillAfter, refillIfComplete, chooseRotation, chooseFixedWeek, segmentAt, sequenceOf, isSimpleSequence, REST } from './rotation.js'
+import { scheduleModeOf, queueRecovery, rotationIds, startPass, saveRotation, startNewPass, stopPass, refillAfter, refillIfComplete, chooseRotation, chooseFixedWeek, segmentAt, sequenceOf, isSimpleSequence, upcomingRotationSessions, REST } from './rotation.js'
 import { queueNext, queueRemaining, queueView } from './queue.js'
 import { effectiveRoutineIds } from './history.js'
 
@@ -548,5 +548,38 @@ describe('rest days and repeats (#536)', () => {
     const s = loop([REST, 'gone'])
     expect(startPass(s, TODAY, NOW)).toBe(false)
     expect(s.queue).toBeNull()
+  })
+})
+
+describe('upcoming sessions of a rotation', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f']
+  const managed = (over = {}) => S({
+    routines: ids.map(id => ({ id, name: id.toUpperCase() })),
+    rotation: { id: 'r1', sequence: ids, label: 'R' },
+    queue: pass(ids, { rotationId: 'r1', startsOn: '2026-09-07' }),
+    ...over,
+  })
+
+  it('is the next few of the pass, not the whole loop', () => {
+    expect(upcomingRotationSessions(managed(), 2, TODAY)).toEqual(['a', 'b'])
+    expect(upcomingRotationSessions(managed(), 0, TODAY)).toEqual([])
+  })
+
+  it('skips sessions already done and continues into the next pass', () => {
+    const workouts = ['a', 'b', 'c', 'd', 'e'].map((id, i) => ({
+      id: 'w-' + id, d: '2026-09-' + String(7 + i).padStart(2, '0'), start: NOW - 1000,
+      routineIds: [id], routineId: id, name: id.toUpperCase(), entries: [],
+    }))
+    expect(upcomingRotationSessions(managed({ workouts }), 2, TODAY)).toEqual(['f', 'a'])
+  })
+
+  it('walks past a rest into the next segment, then around to the start', () => {
+    const s = S({
+      rotation: { id: 'r1', sequence: ['a', 'b', REST, 'c'], label: 'Loop', at: 0 },
+      queue: pass(['a', 'b'], { rotationId: 'r1' }),
+      workouts: [w('a', '2026-09-11')],
+    })
+    expect(upcomingRotationSessions(s, 2, TODAY)).toEqual(['b', 'c'])
+    expect(upcomingRotationSessions(s, 3, TODAY)).toEqual(['b', 'c', 'a'])
   })
 })

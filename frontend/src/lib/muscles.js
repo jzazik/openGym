@@ -15,9 +15,11 @@
 
 import { isWarmupRow } from './workout-model.js'
 import { EXIDX, smOf, isBuiltinEx } from './exercises.js'
-import { todayISO, weekKey, MONDAY } from './format.js'
+import { todayISO, weekKey, weekStartOf, MONDAY } from './format.js'
 import { queueOf } from './queue.js'
-import { workoutAt } from './history.js'
+import { workoutAt, workoutDay } from './history.js'
+import { weekTargetOf } from './week-left.js'
+import { upcomingRotationSessions } from './rotation.js'
 
 // The muscles a map can shade, in head-to-toe order — also the order of any list
 // built from them, so "what am I neglecting" reads top-down like a body.
@@ -385,11 +387,16 @@ export function sessionLevels({ done, planned }) {
 }
 
 /**
- * Effective sets programmed by the live recurring week; overrides and history are not plans.
- * A floating week or rotation (S.queue, lib/queue.js) is the plan too: each of its sessions once,
- * beside your own weekday routines — the same split the Home streak card tallies (weekTally).
+ * Effective sets the muscle chart calls planned for the week. Day overrides are not plans.
+ * Fixed week and a planner's queue: each of that plan's sessions once; a weekday routine the
+ * queue already covers is not added again.
+ * A rotation this app manages, with Workouts per week set, is not the whole loop. It is the
+ * workouts already logged this calendar week, then the next sessions still ahead until that
+ * target is met.
  */
-export function loadOfWeeklyPlan(S) {
+export function loadOfWeeklyPlan(S, today = todayISO()) {
+  const rotation = rotationWeekLoad(S, today)
+  if (rotation !== null) return rotation
   const routines = new Map((S?.routines || []).map(routine => [routine.id, routine]))
   const exercises = Object.fromEntries((S?.customEx || []).map(exercise => [exercise.id, exercise]))
   const q = queueOf(S)
@@ -398,6 +405,31 @@ export function loadOfWeeklyPlan(S) {
     ...Object.values(S?.week || {}).flatMap(value => [].concat(value || [])).filter(id => !queued.has(id)),
     ...(q ? q.ids : []),
   ]
+  return loadOfRoutineIds(ids, routines, exercises)
+}
+
+function rotationWeekLoad(S, today) {
+  const target = weekTargetOf(S)
+  if (!target) return null
+  const q = queueOf(S)
+  if (!q?.rotationId || q.rotationId !== S?.rotation?.id) return null
+  const ws = weekStartOf(S)
+  const week = weekKey(today, ws)
+  const done = (S.workouts || []).filter(w => {
+    const day = workoutDay(w)
+    return day && day <= today && weekKey(day, ws) === week
+  })
+  const ids = upcomingRotationSessions(S, Math.max(0, target - done.length), today)
+  const routines = new Map((S.routines || []).map(routine => [routine.id, routine]))
+  const exercises = Object.fromEntries((S.customEx || []).map(exercise => [exercise.id, exercise]))
+  const load = loadOfWorkouts(done)
+  for (const [slug, sets] of Object.entries(loadOfRoutineIds(ids, routines, exercises))) {
+    load[slug] = (load[slug] || 0) + sets
+  }
+  return load
+}
+
+function loadOfRoutineIds(ids, routines, exercises) {
   const load = {}
   for (const id of ids) {
     const routine = routines.get(id)

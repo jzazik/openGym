@@ -33,7 +33,7 @@
 // old pass would immediately tick an item of the new one.
 
 import { isoOf, todayISO, uid } from './format.js'
-import { queueOf, queueView } from './queue.js'
+import { queueOf, queueView, queueDone } from './queue.js'
 
 const routineIdsOf = w => (Array.isArray(w?.routineIds) ? w.routineIds : (w?.routineId ? [w.routineId] : []))
 const dayAfter = iso => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + 1); return isoOf(d) }
@@ -334,6 +334,49 @@ export function refillAfter(s, w, today = todayISO(), now = Date.now()) {
   // generates on its own from then on.
   s.queue = newPass(rotate(seq, last), s.rotation.label || '', s.rotation.id, bound ? dayAfter(bound) : today, sinceAfter(s, q, now))
   return true
+}
+
+/** The next `n` sessions still ahead in a rotation, continuing into the following pass when this one runs out. */
+export function upcomingRotationSessions(S, n, today = todayISO()) {
+  const count = Math.max(0, Math.floor(Number(n) || 0))
+  if (!count) return []
+  const q = queueOf(S)
+  if (!q) return []
+  const seq = sequenceOf(S)
+  if (seq.length && !isSimpleSequence(seq)) return loopUpcoming(S, seq, count, today)
+  const order = seq.length && isCircular(q.ids, seq) ? q.ids : (q.ids.length ? q.ids : seq)
+  return simpleUpcoming(S, order, count, today)
+}
+
+function simpleUpcoming(S, order, n, today) {
+  if (!order.length) return []
+  const done = new Set(queueDone(S, today))
+  const remaining = order.filter(id => !done.has(id))
+  if (remaining.length >= n) return remaining.slice(0, n)
+  const out = remaining.slice()
+  const next = rotate(order, order[order.length - 1])
+  if (!next.length) return out
+  for (let i = 0; out.length < n; i++) out.push(next[i % next.length])
+  return out
+}
+
+function loopUpcoming(S, seq, n, today) {
+  const done = new Set(queueDone(S, today))
+  const out = []
+  let at = Number.isInteger(S.rotation?.at) ? S.rotation.at : 0
+  let skipDone = true
+  for (let guard = 0; out.length < n && guard < seq.length + n; guard++) {
+    const seg = segmentAt(seq, at)
+    if (!seg) break
+    for (const id of seg.ids) {
+      if (skipDone && done.has(id)) continue
+      out.push(id)
+      if (out.length >= n) return out
+    }
+    skipDone = false
+    at = seg.next
+  }
+  return out
 }
 
 /**

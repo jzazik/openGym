@@ -244,6 +244,53 @@ describe('planned weekly muscle volume', () => {
     expect(loadOfWeeklyPlan()).toEqual({})
     expect(loadOfWeeklyPlan({ routines: [], week: { 1: ['missing'] } })).toEqual({})
   })
+
+  it('caps a managed rotation at the weekly target: next sessions, then actual workouts plus what is left', () => {
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f']
+    const muscles = ['chest', 'lats', 'quadriceps', 'hamstring', 'gluteal', 'biceps']
+    const routines = ids.map((id, i) => ({ id, name: id.toUpperCase(), ex: [{ id: 'ex-' + id, sets: i + 1 }] }))
+    routines.push({ id: 'extra', name: 'Extra', ex: [{ id: 'ex-extra', sets: 9 }] })
+    const customEx = [
+      ...ids.map((id, i) => ({ id: 'ex-' + id, primaries: [muscles[i]] })),
+      { id: 'ex-extra', primaries: ['calves'] },
+    ]
+    const base = {
+      routines, customEx, week: { 1: ['extra'] }, weekStart: 1, weekTarget: 2,
+      rotation: { id: 'r', sequence: ids, label: 'R' },
+      queue: { ids, since: 1000, startsOn: '2026-11-09', label: 'R', rotationId: 'r' },
+      workouts: [],
+    }
+    const today = '2026-11-20'
+    expect(loadOfWeeklyPlan(base, today)).toEqual({ chest: 1, lats: 2 })
+
+    const logged = (id, day, sets, muscle) => ({
+      d: day, start: 2000, routineIds: [id], routineId: id, name: id.toUpperCase(),
+      entries: [{ id: 'ex-' + id, exercise: { primaries: [muscle] }, sets: Array.from({ length: sets }, () => ({ done: true })) }],
+    })
+    const one = { ...base, workouts: [logged('a', '2026-11-18', 4, 'chest')] }
+    expect(loadOfWeeklyPlan(one, today)).toEqual({ chest: 4, lats: 2 })
+
+    const both = { ...base, workouts: [logged('a', '2026-11-18', 4, 'chest'), logged('b', '2026-11-19', 1, 'lats')] }
+    expect(loadOfWeeklyPlan(both, today)).toEqual({ chest: 4, lats: 1 })
+
+    const earlier = ['a', 'b', 'c', 'd', 'e'].map((id, i) => logged(id, '2026-11-' + String(10 + i).padStart(2, '0'), 1, muscles[i]))
+    expect(loadOfWeeklyPlan({ ...base, workouts: earlier }, today)).toEqual({ biceps: 6, chest: 1 })
+  })
+
+  it('leaves a rotation alone when no weekly target is set, and a planner queue even when one is', () => {
+    const ids = ['a', 'b']
+    const routines = ids.map(id => ({ id, name: id.toUpperCase(), ex: [{ id: 'press', sets: 2 }] }))
+    const customEx = [{ id: 'press', primaries: ['chest'], secondaries: ['triceps'] }]
+    const open = {
+      routines, customEx, week: {}, weekTarget: null,
+      rotation: { id: 'r', sequence: ids, label: 'R' },
+      queue: { ids, since: 1000, startsOn: '2026-11-16', label: 'R', rotationId: 'r' },
+      workouts: [],
+    }
+    expect(loadOfWeeklyPlan(open, '2026-11-20')).toEqual({ chest: 4, triceps: 1.6 })
+    const planner = { ...open, weekTarget: 1, rotation: null, queue: { ids, since: 1000, startsOn: '2026-11-16', label: 'W' } }
+    expect(loadOfWeeklyPlan(planner, '2026-11-20')).toEqual({ chest: 4, triceps: 1.6 })
+  })
 })
 
 // A custom exercise that was deleted from the catalogue survives in history only as the

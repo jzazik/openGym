@@ -154,6 +154,18 @@ let workDone = null
 const MAX_WORK_OVERTIME_SEC = 15 * 60
 // A tick that finds its end this far behind it did not see it happen (see seenLive below).
 const LATE_END_MS = 2500
+export const READY_LINGER_MS = 3000
+let readyLingerTm = null
+const clearReadyLinger = () => { if (readyLingerTm) clearTimeout(readyLingerTm); readyLingerTm = null }
+const armReadyLinger = () => {
+  clearReadyLinger()
+  readyLingerTm = setTimeout(() => {
+    readyLingerTm = null
+    if (!useUI.getState().timer?.ready) return
+    if (typeof document !== 'undefined' && document.hidden) return
+    useUI.getState().stopRest()
+  }, READY_LINGER_MS)
+}
 
 // When the hold's next whole second is, counted back from its end, so the digits, the 3-2-1 and the
 // end itself land on the second (Discord "Problem With Timed holds": a 7 s front lever ran about 9 s).
@@ -247,7 +259,10 @@ const runRest = (set, get) => {
     const tm = get().timer
     if (!tm || tm.ready || tm.paused) return
     const left = Math.max(0, Math.round((tm.endsAt - Date.now()) / 1000))
-    const seenLive = !document.hidden && pageHiddenAt === null && Date.now() - tm.endsAt < LATE_END_MS
+    const hiddenMs = pageHiddenAt == null ? 0 : Date.now() - pageHiddenAt
+    const endLate = Date.now() - tm.endsAt >= LATE_END_MS
+    const away = hiddenMs >= LATE_END_MS || (document.hidden && endLate)
+    const seenLive = !document.hidden && !away && !endLate
     if (!document.hidden) pageHiddenAt = null
     if (left === tm.left) return
     const { S: st } = useStore.getState()
@@ -264,6 +279,7 @@ const runRest = (set, get) => {
       return
     }
     if (left <= 0) {
+      if (document.hidden && !away) return
       if (seenLive) {
         // The Android alarm for this end stays quiet while the app is on screen, so this chime is
         // the only one. Locked, this branch never runs and the alarm's tone does. `endsAt` lets the
@@ -272,16 +288,17 @@ const runRest = (set, get) => {
         alertBuzz([200, 100, 200]); get().flashTimer()
         cues.restOver()
       }
-      // On screen the bar goes with the countdown: the toast is the cue. Away, Ready stays,
-      // or a countdown that vanished while the app was hidden reads like a bug (a guest gets
-      // no notification). Only the loud parts are gated on having seen the end. The native
+      // On screen the bar goes with the countdown: the toast is the cue. Away, Ready lingers,
+      // then goes on its own. Only the loud parts are gated on having seen the end. The native
       // alarm stays armed: this tick can come a little early, and with the screen locked it
       // never runs at all.
       get().toast(t('Rest’s over. Next set!'))
       if (!MOBILE) maybeRestNotification()
       cancelPushRestTimer()
       stopRestTicking()
-      set(seenLive ? { timer: null } : { timer: { ...tm, left: 0, ready: true } })
+      if (!away) { set({ timer: null }); return }
+      set({ timer: { ...tm, left: 0, ready: true } })
+      armReadyLinger()
       return
     }
     if (left <= 3) beep(snd, 660, 0.1)
@@ -459,6 +476,7 @@ export const useUI = create((set, get) => ({
   // too, a resume starts it again from the notification's end, and +15 s on a rest the app had
   // already called Ready opens it again. Nothing is sent back: the notification already shows it.
   followNativeRest({ endsAt, left, total, paused }) {
+    clearReadyLinger()
     const tm = get().timer
     const forIdx = tm?.forIdx
     const kind = { ...(tm?.kind === 'switch' ? { kind: 'switch' } : {}), ...(tm?.forSet != null ? { forSet: tm.forSet } : {}), ...(tm?.autoNext ? { autoNext: tm.autoNext } : {}) }
@@ -522,6 +540,7 @@ export const useUI = create((set, get) => ({
     runRest(set, get)
   },
   stopRest() {
+    clearReadyLinger()
     stopRestTicking()
     // Skip, Dismiss, a rest replacing this one and "rest off" all take the native alarm and
     // its notifications down with it, or the alert fires after the user already moved on.
@@ -894,6 +913,13 @@ bindNativeRest(ev => {
   const total = Math.max(left, Math.round((ev.totalMs || 0) / 1000))
   useUI.getState().followNativeRest({ endsAt: ev.endsAt, left, total, paused: !!ev.paused })
 })
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || readyLingerTm || !useUI.getState().timer?.ready) return
+    armReadyLinger()
+  })
+}
 
 // Spoken cues read the profile (on or off, the rate, the running workout) from the store.
 bindCueState(() => useStore.getState?.()?.S)

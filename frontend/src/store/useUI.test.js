@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // useUI pulls in api.js, which reads navigator.userAgent at module scope.
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
-import { useUI } from './useUI.js'
+import { useUI, READY_LINGER_MS } from './useUI.js'
 import { useStore } from './useStore.js'
 
 // "Off" has to hold at the timer itself, not at the four places that start one — the same
@@ -218,6 +218,11 @@ describe('rest readiness and optional timed-set overtime', () => {
     vi.useRealTimers()
   })
 
+  const hide = hidden => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden })
+    document.dispatchEvent(new Event('visibilitychange'))
+  }
+
   it('hides the bar when the rest finishes on screen, and keeps Ready when it finished away', () => {
     useUI.getState().startRest(1, 2)
     vi.advanceTimersByTime(1000)
@@ -225,16 +230,70 @@ describe('rest readiness and optional timed-set overtime', () => {
     expect(useUI.getState().timer).toBeNull()
 
     useUI.getState().startRest(90, 2)
-    Object.defineProperty(document, 'hidden', { value: true, configurable: true })
-    document.dispatchEvent(new Event('visibilitychange'))
+    hide(true)
     vi.setSystemTime(Date.now() + 91_000)
-    Object.defineProperty(document, 'hidden', { value: false, configurable: true })
-    document.dispatchEvent(new Event('visibilitychange'))
+    hide(false)
     expect(useUI.getState().timer).toMatchObject({ left: 0, ready: true, forIdx: 2 })
     useUI.getState().addRest(15)
     expect(useUI.getState().timer).toMatchObject({ left: 15, forIdx: 2 })
     expect(useUI.getState().timer.ready).toBeUndefined()
     useUI.getState().addRest(-15)
+    expect(useUI.getState().timer).toBeNull()
+  })
+
+  it('drops the bar when the end tick is late but the page never left', () => {
+    useUI.getState().startRest(5, 1)
+    vi.advanceTimersByTime(4000)
+    vi.setSystemTime(Date.now() + 4000)
+    vi.advanceTimersByTime(1000)
+    expect(useUI.getState().timer).toBeNull()
+  })
+
+  it('drops the bar after a flicker around zero, and does not leave Ready', () => {
+    useUI.getState().startRest(2, 1)
+    vi.advanceTimersByTime(1000)
+    hide(true)
+    vi.advanceTimersByTime(1000)
+    expect(useUI.getState().timer?.ready).not.toBe(true)
+    hide(false)
+    expect(useUI.getState().timer).toBeNull()
+  })
+
+  it('lets Ready linger after a real absence, then drops it', () => {
+    useUI.getState().startRest(90, 2)
+    hide(true)
+    vi.setSystemTime(Date.now() + 91_000)
+    hide(false)
+    expect(useUI.getState().timer.ready).toBe(true)
+    vi.advanceTimersByTime(READY_LINGER_MS - 1)
+    expect(useUI.getState().timer.ready).toBe(true)
+    vi.advanceTimersByTime(1)
+    expect(useUI.getState().timer).toBeNull()
+  })
+
+  it('does not drop a rest that +15 started from Ready', () => {
+    useUI.getState().startRest(90, 2)
+    hide(true)
+    vi.setSystemTime(Date.now() + 91_000)
+    hide(false)
+    useUI.getState().addRest(15)
+    vi.advanceTimersByTime(READY_LINGER_MS + 1000)
+    expect(useUI.getState().timer).toMatchObject({ left: 11, forIdx: 2 })
+    expect(useUI.getState().timer.ready).toBeUndefined()
+  })
+
+  it('holds Ready while the page is hidden again, and drops it once the page is back', () => {
+    useUI.getState().startRest(90, 2)
+    hide(true)
+    vi.setSystemTime(Date.now() + 91_000)
+    hide(false)
+    hide(true)
+    vi.advanceTimersByTime(READY_LINGER_MS)
+    expect(useUI.getState().timer.ready).toBe(true)
+    hide(false)
+    vi.advanceTimersByTime(READY_LINGER_MS - 1)
+    expect(useUI.getState().timer.ready).toBe(true)
+    vi.advanceTimersByTime(1)
     expect(useUI.getState().timer).toBeNull()
   })
 

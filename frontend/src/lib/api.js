@@ -2,7 +2,7 @@
 import { t } from './i18n-core.js'
 import { MOBILE } from './mobile.js'
 import { appBase } from './app-base.js'
-import { nativeFetch, inAndroidApp } from './capacitor-fetch.js'
+import { nativeFetch, inNativeApp } from './capacitor-fetch.js'
 
 export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
 export const IS_ANDROID = /Android/.test(navigator.userAgent)
@@ -46,6 +46,10 @@ export { appBase }
 // purpose (the admin's provider test) passes its own `timeout`; 0 means none.
 const TIMEOUT_GET_MS = 20000
 const TIMEOUT_MS = 60000
+// A WebView that never answers (a VPN tunnel it stopped following, a black-holed route) has
+// already used its own budget. The app's connection gets one short try, long enough for a
+// revision check to come back and not long enough to double every poll while the server is down.
+const NATIVE_RETRY_MS = 8000
 
 const failure = (message, code, status) => Object.assign(new Error(message), { code, status })
 // The message an error answer is shown with. The server's English `error`, except a write the
@@ -75,17 +79,49 @@ export async function api(path, opts) {
 
 // One exchange, bounded by `ms`. No status on the timeout, like a fetch that failed outright: to
 // the store both mean the server could not be reached, and the device says it is offline instead
-// of waiting forever.
+// of waiting forever. On the phone, a timeout is not the last word: the WebView often drops a
+// VPN route the app's own connection still has, so that stack gets one short try.
 async function request(url, init, ms) {
+  try {
+    return await attempt(url, init, ms, exchange)
+  } catch (e) {
+    // The abort is this budget's own: the timer aborts the request and rejects, and either
+    // rejection can win the race. Both mean the web view never answered.
+    const err = e?.name === 'AbortError' && ms > 0 ? failure(t('The server did not answer in time.'), 'timeout') : e
+    if (err?.code !== 'timeout' || !(await retryNative(url))) throw err
+    const origin = originOf(url)
+    const budget = Math.min(ms, NATIVE_RETRY_MS)
+    try {
+      const body = await attempt(url, init, budget, nativeExchange)
+      viaNative.add(origin)
+      return body
+    } catch (nativeErr) {
+      // The app's stack got an HTTP answer: the server is there, and later calls stay on it.
+      if (nativeErr?.status != null) viaNative.add(origin)
+      throw nativeErr?.status != null ? nativeErr : err
+    }
+  }
+}
+
+function attempt(url, init, ms, run) {
   const ctl = typeof AbortController === 'function' ? new AbortController() : null
   let timer = null
   const expired = new Promise((_, reject) => {
     if (ms > 0) timer = setTimeout(() => { if (ctl) ctl.abort(); reject(failure(t('The server did not answer in time.'), 'timeout')) }, ms)
   })
-  const answer = exchange(url, ctl ? Object.assign({}, init, { signal: ctl.signal }) : init)
+  const answer = run(url, ctl ? Object.assign({}, init, { signal: ctl.signal }) : init)
   answer.catch(() => {})   // it may still settle after the timeout has answered; nobody is listening then
-  try { return await Promise.race([answer, expired]) }
-  finally { clearTimeout(timer) }
+  return Promise.race([answer, expired]).finally(() => clearTimeout(timer))
+}
+
+// The WebView timed out and this phone has another stack to ask. Not when that stack is already
+// the one that timed out, and not when the phone itself reports no network: the second try would
+// only add the wait.
+async function retryNative(url) {
+  const origin = /^https?:\/\//i.test(url) ? originOf(url) : ''
+  if (!origin || viaNative.has(origin)) return false
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
+  return inNativeApp()
 }
 
 // Every route of the API answers JSON (api/server.js json()). A 2xx whose body is not JSON is
@@ -93,12 +129,13 @@ async function request(url, init, ms) {
 // auth proxy's login page, a proxy that sends /api/* to the app's index.html. Reading it as {}
 // made a push look accepted by a server "from before revisions" — the change was marked synced
 // and dropped from the queue. It is an error, with the status it came with.
-// Servers the Android WebView could not reach and the app's own network stack could (#870):
-// requests to them go the native way for the rest of the run. The WebView is a browser with rules
-// of its own: newer ones keep a page from reaching addresses on the home network, and a private
-// CA or plain http can be refused there while the app itself, under its network security config,
-// talks to the same server fine. Only a request that never got an answer is retried; an answer of
-// any kind, or an abort, stands.
+// Servers the phone's web view could not reach and the app's own network stack could (#870):
+// requests to them go the native way for the rest of the run. The web view is a browser with
+// rules of its own. Newer Android ones keep a page from reaching addresses on the home network,
+// and a private CA or plain http can be refused there while the app itself talks to the same
+// server fine. On iPhone the web view also drops a VPN route the app's own connection still
+// has, so the same retry covers it. Only a request that never got an answer is retried; an
+// HTTP answer is not. A timer abort is not retried here: request() gives that one short try.
 const viaNative = new Set()
 export const _viaNativeForTests = viaNative
 async function transport(url, init) {
@@ -107,16 +144,23 @@ async function transport(url, init) {
   try {
     return await fetch(url, init)
   } catch (e) {
-    if (!origin || e?.name === 'AbortError' || init?.signal?.aborted || !(await inAndroidApp())) throw e
+    if (!origin || e?.name === 'AbortError' || init?.signal?.aborted || !(await inNativeApp())) throw e
     let r
-    try { r = await nativeFetch(url, init) } catch { throw e }   // unreachable both ways: the WebView's error explains it
+    try { r = await nativeFetch(url, init) } catch { throw e }   // unreachable both ways: the web view's error explains it
     viaNative.add(origin)
     return r
   }
 }
 
 async function exchange(url, init) {
-  const r = await transport(url, init)
+  return decode(await transport(url, init))
+}
+
+async function nativeExchange(url, init) {
+  return decode(await nativeFetch(url, init))
+}
+
+async function decode(r) {
   let data
   let parsed = true
   try { data = await r.json() } catch { parsed = false }

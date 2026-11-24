@@ -54,10 +54,11 @@ function abortOf(signal) {
   })
 }
 
-/** Whether this is the Android app, where the WebView and the app's own network stack differ. */
-export async function inAndroidApp() {
+/** Whether this is the phone app, where the WebView and the app's own network stack differ. */
+export async function inNativeApp() {
   try {
     const cap = await import('@capacitor/core')
-    return !!(cap?.Capacitor?.isNativePlatform?.() && cap.Capacitor.getPlatform() === 'android')
+    const platform = cap?.Capacitor?.getPlatform?.()
+    return !!(cap?.Capacitor?.isNativePlatform?.() && (platform === 'android' || platform === 'ios'))
   } catch { return false }
 }

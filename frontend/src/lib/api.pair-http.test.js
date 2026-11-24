@@ -5,16 +5,16 @@
 // https://, which a plain-http server never answers: that failure says to type http:// instead.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const h = vi.hoisted(() => ({ native: true }))
+const h = vi.hoisted(() => ({ native: true, platform: 'android' }))
 vi.mock('@capacitor/core', () => ({
-  Capacitor: { getPlatform: () => (h.native ? 'android' : 'web'), isNativePlatform: () => h.native },
+  Capacitor: { getPlatform: () => (h.native ? h.platform : 'web'), isNativePlatform: () => h.native },
   CapacitorHttp: { request: () => Promise.reject(new Error('unreachable')) },
   registerPlugin: () => ({}),
 }))
 
 const { pairRedeem, looksLocal } = await import('./api.js')
 
-afterEach(() => { vi.unstubAllGlobals(); h.native = true })
+afterEach(() => { vi.unstubAllGlobals(); h.native = true; h.platform = 'android' })
 const failed = () => Promise.reject(new TypeError('Failed to fetch'))
 const json = (body, status) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
@@ -73,7 +73,8 @@ describe('looksLocal', () => {
 // #870: the Android WebView refused a self-hosted server (home network, private CA) that the
 // phone's browser opened fine: pairing said "Could not reach" over https and over http alike.
 describe('a server only the app itself can reach (#870)', () => {
-  it('pairs through the native network stack, and keeps talking to it that way', async () => {
+  it.each(['android', 'ios'])('pairs through the native network stack on %s, and keeps talking to it that way', async platform => {
+    h.platform = platform
     const { _viaNativeForTests, api, setRemoteAuth } = await import('./api.js')
     const core = await import('@capacitor/core')
     const native = vi.fn(async ({ url }) => ({ status: 200, data: url.endsWith('/redeem') ? JSON.stringify({ token: 'T', user: { id: 'u1' } }) : JSON.stringify({ rev: 7 }) }))
@@ -86,7 +87,7 @@ describe('a server only the app itself can reach (#870)', () => {
       expect(native.mock.calls[0][0]).toMatchObject({ url: 'https://192.168.1.20:8443/api/pair/redeem', method: 'POST', data: { code: 'ABCD2345' } })
       setRemoteAuth('https://192.168.1.20:8443', 'T')
       await expect(api('/api/data/rev')).resolves.toEqual({ rev: 7 })
-      // The WebView is not tried again for that server.
+      // The web view is not tried again for that server.
       expect(fetch).toHaveBeenCalledTimes(1)
       expect(native.mock.calls[1][0].headers.Authorization).toBe('Bearer T')
     } finally {
@@ -95,10 +96,77 @@ describe('a server only the app itself can reach (#870)', () => {
       core.CapacitorHttp.request = () => Promise.reject(new Error('unreachable'))
     }
   })
-  it('off the Android app nothing changes', async () => {
+  it('off the phone app nothing changes', async () => {
     h.native = false
     vi.stubGlobal('fetch', vi.fn(failed))
     const e = await pairRedeem('https://gym.example.com', 'ABCD2345', { probeMs: 20 }).catch(x => x)
     expect(e.code).toBe('unreachable')
+  })
+})
+
+// A VPN the web view stops following: fetch never answers, while the phone's own connection
+// still reaches the server. One short try goes that way, and a server that answers stays on it.
+describe('a web view that never answers while the phone can still reach the server', () => {
+  const hang = () => new Promise(() => {})
+  async function withNative(native, run) {
+    h.platform = 'ios'
+    const { _viaNativeForTests, api, setRemoteAuth } = await import('./api.js')
+    const core = await import('@capacitor/core')
+    core.CapacitorHttp.request = native
+    const fetch = vi.fn(hang)
+    vi.stubGlobal('fetch', fetch)
+    setRemoteAuth('https://gym.example.com', 'T')
+    try { await run({ api, fetch, native, via: _viaNativeForTests }) }
+    finally {
+      _viaNativeForTests.clear()
+      setRemoteAuth('', null)
+      core.CapacitorHttp.request = () => Promise.reject(new Error('unreachable'))
+    }
+  }
+
+  it('retries once through the app connection and keeps that server there', async () => {
+    const native = vi.fn(async () => ({ status: 200, data: JSON.stringify({ rev: 4 }) }))
+    await withNative(native, async ({ api, fetch }) => {
+      await expect(api('/api/data/rev', { timeout: 40 })).resolves.toEqual({ rev: 4 })
+      expect(native).toHaveBeenCalledTimes(1)
+      await expect(api('/api/data/rev', { timeout: 40 })).resolves.toEqual({ rev: 4 })
+      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(native).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('keeps an HTTP answer from that connection, instead of the timeout', async () => {
+    const native = vi.fn(async () => ({ status: 502, data: JSON.stringify({ error: 'nope' }) }))
+    await withNative(native, async ({ api, fetch }) => {
+      await expect(api('/api/data/rev', { timeout: 40 })).rejects.toMatchObject({ status: 502, message: 'nope' })
+      await expect(api('/api/data/rev', { timeout: 40 })).rejects.toMatchObject({ status: 502 })
+      expect(fetch).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('stays a timeout when the app connection does not answer either, and tries the web view again next time', async () => {
+    const native = vi.fn(hang)
+    await withNative(native, async ({ api, fetch, via }) => {
+      await expect(api('/api/data/rev', { timeout: 30 })).rejects.toMatchObject({ code: 'timeout', status: undefined })
+      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(native).toHaveBeenCalledTimes(1)
+      expect(via.size).toBe(0)
+      await expect(api('/api/data/rev', { timeout: 30 })).rejects.toMatchObject({ code: 'timeout' })
+      expect(fetch).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('does not spend that second try when the phone itself reports no network', async () => {
+    const prev = Object.getOwnPropertyDescriptor(navigator, 'onLine')
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false })
+    const native = vi.fn(async () => ({ status: 200, data: JSON.stringify({ rev: 1 }) }))
+    try {
+      await withNative(native, async ({ api }) => {
+        await expect(api('/api/data/rev', { timeout: 30 })).rejects.toMatchObject({ code: 'timeout' })
+        expect(native).not.toHaveBeenCalled()
+      })
+    } finally {
+      if (prev) Object.defineProperty(navigator, 'onLine', prev)
+    }
   })
 })
